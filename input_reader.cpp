@@ -1,109 +1,99 @@
 #include "input_reader.h"
-
-#include <sstream>
 #include <algorithm>
-#include <vector>
-#include <string_view>
-#include <cmath>
+#include <cassert>
+#include <iterator>
 
-using namespace std;
-
-string_view Trim(string_view s) {
-    size_t start = s.find_first_not_of(' ');
-    if (start == string_view::npos)
-        return {};
-    size_t end = s.find_last_not_of(' ');
-    return s.substr(start, end - start + 1);
-}
-
-vector<string_view> Split(string_view str, char delimiter) {
-    vector<string_view> result;
-    size_t start = 0;
-
-    while (true) {
-        size_t end = str.find(delimiter, start);
-        if (end == string_view::npos) {
-            break;
-        }
-        if (end > start) {
-            result.push_back(str.substr(start, end - start));
-        }
-        start = end + 1;
+Coordinates ParseCoordinates(std::string_view str) {
+    static const double nan = std::nan("");
+    auto not_space = str.find_first_not_of(' ');
+    auto comma = str.find(',');
+    if (comma == str.npos) {
+        return {nan, nan};
     }
-
-    if (start < str.size()) {
-        result.push_back(str.substr(start));
-    }
-
-    return result;
-}
-
-Coordinates ParseCoordinates(string_view str) {
-    auto parts = Split(str, ',');
-    if (parts.size() != 2) {
-        return {NAN, NAN};
-    }
-
-    double lat = stod(string(parts[0]));
-    double lng = stod(string(parts[1]));
-
+    auto not_space2 = str.find_first_not_of(' ', comma + 1);
+    double lat = std::stod(std::string(str.substr(not_space, comma - not_space)));
+    double lng = std::stod(std::string(str.substr(not_space2)));
     return {lat, lng};
 }
 
-CommandDescription ParseCommandDescription(string_view line) {
+std::string_view Trim(std::string_view string) {
+    const auto start = string.find_first_not_of(' ');
+    if (start == string.npos) {
+        return {};
+    }
+    return string.substr(start, string.find_last_not_of(' ') + 1 - start);
+}
+
+std::vector<std::string_view> Split(std::string_view string, char delim) {
+    std::vector<std::string_view> result;
+    size_t pos = 0;
+    while ((pos = string.find_first_not_of(' ', pos)) < string.length()) {
+        auto delim_pos = string.find(delim, pos);
+        if (delim_pos == string.npos) {
+             delim_pos = string.size();
+        }
+        if (auto substr = Trim(string.substr(pos, delim_pos - pos)); !substr.empty()) {
+            result.push_back(substr);
+        }
+        pos = delim_pos + 1;
+    }
+    return result;
+}
+
+std::vector<std::string_view> ParseRoute(std::string_view route) {
+    if (route.find('>') != route.npos) {
+        return Split(route, '>');
+    }
+    auto stops = Split(route, '-');
+    std::vector<std::string_view> results(stops.begin(), stops.end());
+    results.insert(results.end(), std::next(stops.rbegin()), stops.rend());
+    return results;
+}
+
+CommandDescription ParseCommandDescription(std::string_view line) {
     auto colon_pos = line.find(':');
-    if (colon_pos == string_view::npos)
+    if (colon_pos == line.npos) {
         return {};
-
+    }
     auto space_pos = line.find(' ');
-    if (space_pos >= colon_pos || space_pos == string_view::npos)
+    if (space_pos >= colon_pos) {
         return {};
-
+    }
     auto not_space = line.find_first_not_of(' ', space_pos);
-    if (not_space >= colon_pos || not_space == string_view::npos)
+    if (not_space >= colon_pos) {
         return {};
-
-    return {
-        string(line.substr(0, space_pos)),
-        string(line.substr(not_space, colon_pos - not_space)),
-        string(line.substr(colon_pos + 1))
-    };
+    }
+    return {std::string(line.substr(0, space_pos)),
+            std::string(line.substr(not_space, colon_pos - not_space)),
+            std::string(line.substr(colon_pos + 1))};
 }
 
-void InputReader::ParseLine(string_view line) {
-    auto cmd = ParseCommandDescription(line);
-    if (cmd) {
-        commands_.push_back(move(cmd));
+void InputReader::ParseLine(std::string_view line) {
+    auto command_description = ParseCommandDescription(line);
+    if (command_description) {
+        commands_.push_back(std::move(command_description));
     }
-}
-
-vector<string_view> ParseRoute(string_view route_desc) {
-    if (route_desc.find(" > ") != string_view::npos) {
-        return Split(route_desc, '>');
-    }
-
-    auto stops = Split(route_desc, '-');
-    vector<string_view> full_route(stops.begin(), stops.end());
-
-    for (auto it = stops.rbegin() + 1; it != stops.rend(); ++it) {
-        full_route.push_back(*it);
-    }
-
-    return full_route;
 }
 
 void InputReader::ApplyCommands(TransportCatalogue& catalogue) const {
-    for (const auto& cmd : commands_) {
-        if (cmd.command == "Stop") {
-            catalogue.AddStop(cmd.id, ParseCoordinates(cmd.description));
-        } else if (cmd.command == "Bus") {
-            bool is_circular = cmd.description.find('>') != string::npos;
-            auto stops = ParseRoute(cmd.description);
-            vector<string> stop_names;
-            for (auto stop : stops) {
-                stop_names.emplace_back(Trim(stop));
-            }
-            catalogue.AddBus(cmd.id, stop_names, is_circular);
+    for(auto &i : commands_) {
+        if(i.command != "Stop") {
+            continue;
         }
+        Coordinates coord = ParseCoordinates(i.description);
+        catalogue.AddStop(std::move(i.id), std::move(coord));
+    }
+
+    for(auto &i : commands_) {
+        if(i.command != "Bus") {
+            continue;
+        }
+        std::vector<std::string_view> stops = ParseRoute(i.description);
+        std::deque<const Stop *> stop_names;
+        for(auto i : stops) {
+            const Stop *temp = catalogue.FindStop(i);
+            stop_names.push_back(temp);
+        }
+        catalogue.AddBus(i.id, stop_names);
     }
 }
