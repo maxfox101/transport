@@ -1,7 +1,4 @@
 #pragma once
-
-#include <string>
-#include <string_view>
 #include <vector>
 
 #include "geo.h"
@@ -12,13 +9,14 @@ struct CommandDescription {
         return !command.empty();
     }
 
+    bool operator!() const {
+        return !operator bool();
+    }
+
     std::string command;
     std::string id;
     std::string description;
 };
-
-// Объявляем ParseRoute
-std::vector<std::string_view> ParseRoute(std::string_view route_desc);
 
 class InputReader {
 public:
