@@ -1,49 +1,48 @@
 #include "stat_reader.h"
-#include "transport_catalogue.h"
+#include <ostream>
 
-#include <iostream>
-#include <sstream>
-#include <string>
-#include <string_view>
-#include <iomanip>
+struct Request {
+    std::string_view type;
+    std::string_view description;
+};
 
-void ParseAndPrintStat(const TransportCatalogue& catalogue,
-                       std::string_view request,
-                       std::ostream& output) {
-    std::istringstream ss{std::string{request}};
-    std::string command;
+Request ParseRequest(std::string_view req) {
+    size_t space_pos = req.find(' ');
+    std::string_view type = req.substr(0, space_pos);
+    std::string_view description = req.substr(space_pos + 1);
+    return Request{type, description};
+}
 
-    if (!(ss >> command)) {
-        return;
+void ParseAndPrintStat(const TransportCatalogue& catalogue, std::string_view request,
+                      std::ostream& output) {
+    Request req = ParseRequest(request);
+    output << req.type << " " << req.description << ": ";
+    
+    if(req.type == "Bus") {
+        const Bus *bus = catalogue.FindBus(req.description);
+        if(!bus) {
+            output << "not found" << std::endl;
+            return;    
+        }
+        BusInfo info = catalogue.GetBusInfo(*bus);
+        output << info.stops << " stops on route, " << info.unique_stops << " unique stops, "
+                << info.length << " route length" << std::endl;
     }
-
-    if (command == "Stop") {
-        std::string id;
-        std::getline(ss >> std::ws, id);
-
-        auto buses = catalogue.GetBusesForStop(id);
-        if (buses.empty()) {
-            output << "Stop " << id << ": no buses" << std::endl;
-        } else {
-            output << "Stop " << id << ": buses";
-            for (const auto& bus : buses) {
-                output << " " << bus;
-            }
-            output << std::endl;
+    
+    if(req.type == "Stop") {
+        const Stop *stop = catalogue.FindStop(req.description);
+        if(!stop) {
+            output << "not found" << std::endl;
+            return;
         }
-    } else if (command == "Bus") {
-        std::string id;
-        std::getline(ss >> std::ws, id);
-
-        const auto bus = catalogue.FindBus(id);
-        if (!bus) {
-            output << "Bus " << id << ": not found" << std::endl;
-        } else {
-            output << "Bus " << id << ": " 
-                   << catalogue.GetStopCount(id) << " stops on route, "
-                   << catalogue.GetUniqueStopCount(id) << " unique stops, "
-                   << std::setprecision(6) << catalogue.CalculateRouteLength(id) << " route length"
-                   << std::endl;
+        if(stop->buses.empty()) {
+            output << "no buses" << std::endl;
+            return;
         }
+        output << "buses";
+        for(auto i : stop->buses) {
+            output << " " << i;
+        }
+        output << std::endl;
     }
 }
