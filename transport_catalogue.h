@@ -1,39 +1,73 @@
 #pragma once
-
-#include <string>
-#include <vector>
-#include <unordered_map>
-#include <unordered_set>
-#include <string_view>
-
 #include "geo.h"
 
+#include <utility>
+#include <string>
+#include <string_view>
+#include <deque>
+#include <unordered_set>
+#include <set>
+#include <unordered_map>
+
 struct Stop {
+    bool operator==(const Stop &v) const {
+        return name == v.name && coordinates == v.coordinates;
+    }
+
     std::string name;
     Coordinates coordinates;
+    std::set<std::string_view> buses;
 };
 
 struct Bus {
-    std::string name;
-    std::vector<std::string> stops;
-    bool is_circular;
+    bool operator==(const Bus &v) const {
+        return number == v.number && stop_list == v.stop_list;
+    }
+
+    std::string number;
+    std::deque<const Stop*> stop_list;
+};
+
+struct BusInfo {
+    int stops;
+    int unique_stops;
+    double length;
 };
 
 class TransportCatalogue {
 public:
-    void AddStop(std::string_view name, Coordinates coords);
-    void AddBus(std::string_view name, const std::vector<std::string>& stops, bool is_circular);
-
-    const Stop* FindStop(std::string_view name) const;
-    const Bus* FindBus(std::string_view name) const;
-
-    const std::vector<std::string>& GetBusesForStop(std::string_view stop_name) const;
-    size_t GetUniqueStopCount(std::string_view bus_name) const;
-    double CalculateRouteLength(std::string_view bus_name) const;
-    size_t GetStopCount(std::string_view bus_name) const;
+    TransportCatalogue() = default;
+    void AddStop(const std::string_view name, Coordinates coord);
+    void AddBus(const std::string_view name, const std::deque<const Stop*> &stops_list);
+    const Stop* FindStop(std::string_view str) const;
+    const Bus* FindBus(std::string_view num) const;
+    BusInfo GetBusInfo(const Bus &bus) const;
 
 private:
-    std::unordered_map<std::string, Stop> stops_;
-    std::unordered_map<std::string, Bus> buses_;
-    std::unordered_map<std::string, std::vector<std::string>> stop_to_buses_;
+    struct StopHash {
+        size_t operator() (const Stop &v) const {
+            size_t ret = 0;
+            for(size_t i = 0; i < v.name.size(); ++i) {
+                ret += (v.name[i] - 'A') * std::pow(7, i);
+            }
+            ret *= 1'000'000'000;
+            ret += v.coordinates.lat * 100'000'000 + v.coordinates.lng * 1'000'000'000;
+            return ret;
+        }
+    };
+
+    struct BusHash {
+        size_t operator() (const Bus &v) const {
+            size_t ret = 0;
+            for(size_t i = 0; i < v.number.size(); ++i) {
+                ret += (v.number[i] - 'A') * std::pow(7, i);
+            }
+            return ret;
+        }
+    };
+
+    std::unordered_set<Stop, StopHash> stops_;
+    std::unordered_map<std::string_view, const Stop *> stops_ptr_;
+    std::unordered_set<Bus, BusHash> buses_;
+    std::unordered_map<std::string_view, const Bus *> buses_ptr_;
 };
