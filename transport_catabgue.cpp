@@ -9,9 +9,8 @@ void TransportCatalogue::AddStop(const std::string_view name, Coordinates coord)
 }
 
 void TransportCatalogue::AddBus(const std::string_view name, const std::deque<const Stop*> &stops_list) {
-    if(buses_.contains(Bus{std::string(name), stops_list})) {
+    if(buses_.contains(Bus{std::string(name), stops_list})) 
         return;
-    }
     auto [it, done] = buses_.insert(Bus{std::string(name), stops_list});
     buses_ptr_.insert({it->number, &(*it)});
     for(const Stop *i : stops_list) {
@@ -32,9 +31,8 @@ const Bus* TransportCatalogue::FindBus(std::string_view num) const {
 BusInfo TransportCatalogue::GetBusInfo(const Bus &bus) const {
     int stops = bus.stop_list.size();
     std::unordered_set<std::string_view> unique_stops;
-    for(const Stop *i : bus.stop_list) {
+    for(const Stop *i : bus.stop_list) 
         unique_stops.insert(i->name);
-    }
     double length = 0;
     Stop prev = *bus.stop_list[0];
     for(size_t i = 1; i < bus.stop_list.size(); ++i) {
