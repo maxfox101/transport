@@ -8,9 +8,6 @@ struct Coordinates {
     bool operator==(const Coordinates& other) const {
         return lat == other.lat && lng == other.lng;
     }
-    bool operator!=(const Coordinates& other) const {
-        return !(*this == other);
-    }
 };
 
 inline double ComputeDistance(Coordinates from, Coordinates to) {
@@ -18,8 +15,14 @@ inline double ComputeDistance(Coordinates from, Coordinates to) {
     if (from == to) {
         return 0;
     }
-    static const double dr = 3.1415926535 / 180.;
-    return acos(sin(from.lat * dr) * sin(to.lat * dr)
-                + cos(from.lat * dr) * cos(to.lat * dr) * cos(abs(from.lng - to.lng) * dr))
-        * 6371000;
+    
+    const double dr = 3.1415926535 / 180.0;
+    const double lat1 = from.lat * dr;
+    const double lat2 = to.lat * dr;
+    const double dlng = (to.lng - from.lng) * dr;
+
+    return 6371000 * acos(
+        sin(lat1) * sin(lat2) + 
+        cos(lat1) * cos(lat2) * cos(dlng)
+    );
 }
