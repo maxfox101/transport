@@ -14,7 +14,7 @@ Request ParseRequest(std::string_view req) {
     };
 }
 
-void ProcessBusRequest(const TransportCatalogue& catalogue, 
+void ProcessBusRequest(const TransportCatalogue& catalogue,
                       std::string_view description,
                       std::ostream& output) {
     const Bus* bus = catalogue.FindBus(description);
@@ -25,7 +25,8 @@ void ProcessBusRequest(const TransportCatalogue& catalogue,
     const BusInfo info = catalogue.GetBusInfo(*bus);
     output << info.stops << " stops on route, "
            << info.unique_stops << " unique stops, "
-           << info.length << " route length\n";
+           << info.length << " route length, "
+           << info.curvature << " curvature\n";
 }
 
 void ProcessStopRequest(const TransportCatalogue& catalogue,
@@ -47,12 +48,11 @@ void ProcessStopRequest(const TransportCatalogue& catalogue,
     output << "\n";
 }
 
-void ParseAndPrintStat(const TransportCatalogue& catalogue, 
+void ParseAndPrintStat(const TransportCatalogue& catalogue,
                       std::string_view request,
                       std::ostream& output) {
     const Request req = ParseRequest(request);
     output << req.type << " " << req.description << ": ";
-    
     if (req.type == "Bus") {
         ProcessBusRequest(catalogue, req.description, output);
     } 
