@@ -1,6 +1,5 @@
 #pragma once
 #include "geo.h"
-
 #include <utility>
 #include <string>
 #include <string_view>
@@ -13,7 +12,6 @@ struct Stop {
     bool operator==(const Stop &v) const {
         return name == v.name && coordinates == v.coordinates;
     }
-
     std::string name;
     Coordinates coordinates;
     std::set<std::string_view> buses;
@@ -23,7 +21,6 @@ struct Bus {
     bool operator==(const Bus &v) const {
         return number == v.number && stop_list == v.stop_list;
     }
-
     std::string number;
     std::deque<const Stop*> stop_list;
 };
@@ -32,6 +29,7 @@ struct BusInfo {
     int stops;
     int unique_stops;
     double length;
+    double curvature;  // новое поле
 };
 
 class TransportCatalogue {
@@ -43,7 +41,18 @@ public:
     const Bus* FindBus(std::string_view num) const;
     BusInfo GetBusInfo(const Bus &bus) const;
 
+    // Новые методы
+    void SetDistance(const Stop* from, const Stop* to, int distance);
+    int GetDistance(const Stop* from, const Stop* to) const;
+
 private:
+    struct PairPointerHash {
+        template <typename T>
+        std::size_t operator()(const std::pair<T, T>& p) const {
+            return std::hash<void*>()((void*)p.first) ^ std::hash<void*>()((void*)p.second);
+        }
+    };
+
     struct StopHash {
         size_t operator() (const Stop &v) const {
             size_t ret = 0;
@@ -70,4 +79,6 @@ private:
     std::unordered_map<std::string_view, const Stop *> stops_ptr_;
     std::unordered_set<Bus, BusHash> buses_;
     std::unordered_map<std::string_view, const Bus *> buses_ptr_;
+
+    std::unordered_map<std::pair<const Stop*, const Stop*>, int, PairPointerHash> distances_;
 };
